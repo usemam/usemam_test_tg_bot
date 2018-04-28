@@ -1,1 +1,1 @@
-web: usemam_test_tg_bot
+worker: usemam_test_tg_bot
