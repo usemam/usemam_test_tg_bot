@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 
 	api "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -11,6 +12,11 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		log.Fatal("$PORT must be set")
+	}
+
+	err := http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	bot, err := api.NewBotAPI("571704538:AAEAGONOB5-tWBGz_uqDrXTuDUYBMKfW5Lk")
