@@ -13,10 +13,15 @@ func processUpdate(update api.Update, bot *api.BotAPI) error {
 		return nil
 	}
 
-	log.Println("New message - '%s' %s", update.Message.From.FirstName, update.Message.Text)
 	message := api.NewMessage(update.Message.Chat.ID, update.Message.Text)
 	_, err := bot.Send(message)
 	return err
+}
+
+func fail(e error) {
+	if e != nil {
+		log.Fatal(e)
+	}
 }
 
 func main() {
