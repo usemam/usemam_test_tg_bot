@@ -1,45 +1,89 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 
+	gin "github.com/gin-gonic/gin"
 	api "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-func main() {
-	bot, err := api.NewBotAPI("571704538:AAEAGONOB5-tWBGz_uqDrXTuDUYBMKfW5Lk")
+var (
+	bot      *api.BotAPI
+	botToken string
+	baseURL  string
+)
+
+func initBot() {
+	var err error
+
+	bot, err = api.NewBotAPI(botToken)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
+		return
 	}
 
-	bot.Debug = true
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+	_, err = bot.SetWebhook(api.NewWebhook(baseURL + botToken))
+}
 
-	cfg := api.NewUpdate(0)
-	cfg.Timeout = 60
+func webHookHandler(c *gin.Context) {
+	defer c.Request.Body.Close()
 
-	updates, err := bot.GetUpdatesChan(cfg)
-	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
-
-		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
-		msg := api.NewMessage(update.Message.Chat.ID, update.Message.Text)
-		msg.ReplyToMessageID = update.Message.MessageID
-
-		bot.Send(msg)
+	bytes, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Println(err)
+		return
 	}
 
+	var update api.Update
+	err = json.Unmarshal(bytes, &update)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	if update.Message == nil {
+		return
+	}
+
+	log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+
+	msg := api.NewMessage(update.Message.Chat.ID, update.Message.Text)
+	msg.ReplyToMessageID = update.Message.MessageID
+
+	bot.Send(msg)
+}
+
+func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		log.Fatal("$PORT must be set")
+		return
 	}
 
-	if http.ListenAndServe(":"+port, nil) != nil {
-		log.Fatal(err)
+	botToken = os.Getenv("TOKEN")
+	if botToken == "" {
+		log.Fatal("$TOKEN must be set")
+		return
+	}
+
+	baseURL = os.Getenv("URL")
+	if baseURL == "" {
+		log.Fatal("$URL must be set properly")
+	}
+
+	router := gin.New()
+	router.Use(gin.Logger())
+
+	initBot()
+	bot.Debug = true
+	log.Printf("Authorized on account %s", bot.Self.UserName)
+
+	router.POST("/"+bot.Token, webHookHandler)
+	err := router.Run(":" + port)
+	if err != nil {
+		log.Println(err)
 	}
 }
