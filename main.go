@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -18,9 +19,9 @@ func processUpdate(update api.Update, bot *api.BotAPI) error {
 	return err
 }
 
-func fail(e error) {
-	if e != nil {
-		log.Fatal(e)
+func fail(msg string, err error) {
+	if err != nil {
+		log.Fatal(fmt.Sprintf("%s - %v", msg, err))
 	}
 }
 
@@ -28,10 +29,10 @@ func main() {
 	cfg := config.New()
 
 	bot, err := api.NewBotAPI(cfg.BotToken)
-	fail(err)
+	fail("Failed to initialize bot", err)
 
 	_, err = bot.SetWebhook(api.NewWebhook(cfg.URL + cfg.BotToken))
-	fail(err)
+	fail("Failed to set webhook", err)
 
 	updates := bot.ListenForWebhook("/")
 	go http.ListenAndServe(":"+cfg.Port, nil)
