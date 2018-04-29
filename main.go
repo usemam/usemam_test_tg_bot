@@ -1,89 +1,40 @@
 package main
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"log"
-	"os"
+	"net/http"
 
-	gin "github.com/gin-gonic/gin"
 	api "github.com/go-telegram-bot-api/telegram-bot-api"
+	config "github.com/usemam/usemam_test_tg_bot/configuration"
 )
 
-var (
-	bot      *api.BotAPI
-	botToken string
-	baseURL  string
-)
-
-func initBot() {
-	var err error
-
-	bot, err = api.NewBotAPI(botToken)
-	if err != nil {
-		log.Panic(err)
-		return
-	}
-
-	_, err = bot.SetWebhook(api.NewWebhook(baseURL + botToken))
-}
-
-func webHookHandler(c *gin.Context) {
-	defer c.Request.Body.Close()
-
-	bytes, err := ioutil.ReadAll(c.Request.Body)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	var update api.Update
-	err = json.Unmarshal(bytes, &update)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
+func processUpdate(update api.Update, bot *api.BotAPI) error {
 	if update.Message == nil {
-		return
+		return nil
 	}
 
-	log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
-	msg := api.NewMessage(update.Message.Chat.ID, update.Message.Text)
-	msg.ReplyToMessageID = update.Message.MessageID
-
-	bot.Send(msg)
+	log.Println("New message - '%s' %s", update.Message.From.FirstName, update.Message.Text)
+	message := api.NewMessage(update.Message.Chat.ID, update.Message.Text)
+	_, err := bot.Send(message)
+	return err
 }
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		log.Fatal("$PORT must be set")
-		return
-	}
+	cfg := config.New()
 
-	botToken = os.Getenv("TOKEN")
-	if botToken == "" {
-		log.Fatal("$TOKEN must be set")
-		return
-	}
+	bot, err := api.NewBotAPI(cfg.BotToken)
+	fail(err)
 
-	baseURL = os.Getenv("URL")
-	if baseURL == "" {
-		log.Fatal("$URL must be set properly")
-	}
+	_, err = bot.SetWebhook(api.NewWebhook(cfg.URL + cfg.BotToken))
+	fail(err)
 
-	router := gin.New()
-	router.Use(gin.Logger())
+	updates := bot.ListenForWebhook("/")
+	go http.ListenAndServe(":"+cfg.Port, nil)
 
-	initBot()
-	bot.Debug = true
-	log.Printf("Authorized on account %s", bot.Self.UserName)
-
-	router.POST("/"+bot.Token, webHookHandler)
-	err := router.Run(":" + port)
-	if err != nil {
-		log.Println(err)
+	for update := range updates {
+		err = processUpdate(update, bot)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
